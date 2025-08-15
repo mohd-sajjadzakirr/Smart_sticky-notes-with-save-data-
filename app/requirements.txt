@@ -1,0 +1,4 @@
+# External dependencies
+Pillow>=9.0.0
+
+# Python 3.6+ recommended for best compatibility

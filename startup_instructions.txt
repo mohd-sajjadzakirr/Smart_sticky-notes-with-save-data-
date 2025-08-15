@@ -1,0 +1,34 @@
+🚀 SETTING UP AUTO-START ON WINDOWS
+
+To make your Sticky Notes app start automatically when you boot your computer:
+
+METHOD 1 - Using Startup Folder (Recommended)
+1. Press Win + R
+2. Type: shell:startup
+3. Press Enter
+4. Copy your sticky_notes.py file to this folder
+5. Or create a shortcut to sticky_notes.py in this folder
+
+METHOD 2 - Using Task Scheduler
+1. Press Win + R
+2. Type: taskschd.msc
+3. Press Enter
+4. Click "Create Basic Task"
+5. Name it "Sticky Notes"
+6. Choose "When the computer starts"
+7. Action: Start a program
+8. Program: python3
+9. Arguments: "C:\path\to\sticky_notes.py"
+10. Finish
+
+METHOD 3 - Using Registry (Advanced)
+1. Press Win + R
+2. Type: regedit
+3. Navigate to: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
+4. Create new String Value
+5. Name: StickyNotes
+6. Value: python3 "C:\path\to\sticky_notes.py"
+
+⚠️  IMPORTANT: Replace "C:\path\to\sticky_notes.py" with the actual path where you saved the file!
+
+💡 TIP: The startup folder method is the easiest and safest option.
