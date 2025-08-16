@@ -91,6 +91,10 @@ class InstanceController:
             # Enable auto-start for new instance
             self.enable_auto_start_for_instance(instance_id)
             
+            # Enable global auto-start if this is the first instance
+            if len(self.instances) == 1:
+                self.enable_global_auto_start()
+            
             # Launch new instance
             self.launch_instance(instance_id)
             
@@ -713,18 +717,50 @@ class InstanceController:
     def enable_auto_start_for_instance(self, instance_id):
         """Enable auto-start for a specific instance"""
         try:
+            # Instead of creating individual auto-start entries, we'll use a global startup manager
+            # The instance will be automatically restored when the startup manager runs
+            print(f"Auto-start enabled for instance {instance_id} (will be restored by startup manager)")
+        except Exception as e:
+            print(f"Could not enable auto-start for instance {instance_id}: {e}")
+    
+    def enable_global_auto_start(self):
+        """Enable global auto-start for the application"""
+        try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
                                 r"Software\Microsoft\Windows\CurrentVersion\Run",
                                 0, winreg.KEY_SET_VALUE)
             
-            # Create auto-start entry with instance ID
-            script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'sticky_notes_widget.py'))
-            auto_start_value = f'"{sys.executable}" "{script_path}" --instance-id {instance_id}'
-            winreg.SetValueEx(key, f"SmartNotes_{instance_id[:8]}", 0, winreg.REG_SZ, auto_start_value)
+            # Create auto-start entry for the startup manager
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            startup_manager_path = os.path.join(os.path.dirname(current_dir), 'startup_manager.py')
+            auto_start_value = f'"{sys.executable}" "{startup_manager_path}"'
+            winreg.SetValueEx(key, "SmartNotes_StartupManager", 0, winreg.REG_SZ, auto_start_value)
             winreg.CloseKey(key)
             
+            print("Global auto-start enabled for Smart Notes")
+            return True
+            
         except Exception as e:
-            print(f"Could not enable auto-start for instance {instance_id}: {e}")
+            print(f"Could not enable global auto-start: {e}")
+            return False
+    
+    def disable_global_auto_start(self):
+        """Disable global auto-start for the application"""
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                                0, winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE)
+            
+            # Remove the auto-start entry
+            winreg.DeleteValue(key, "SmartNotes_StartupManager")
+            winreg.CloseKey(key)
+            
+            print("Global auto-start disabled for Smart Notes")
+            return True
+            
+        except Exception as e:
+            print(f"Could not disable global auto-start: {e}")
+            return False
     
     def center_window(self):
         """Center the controller window on screen"""

@@ -8,12 +8,71 @@ import uuid
 from datetime import datetime
 
 class DesktopWidget:
+    # Class variable to track all instances
+    _instance_registry = {}
+    _registry_file = os.path.join(os.path.expanduser('~'), '.smart_notes_instance_registry.json')
+    
+    @classmethod
+    def register_instance(cls, instance_id, metadata):
+        """Register an instance in the global registry"""
+        cls._instance_registry[instance_id] = metadata
+        cls._save_instance_registry()
+    
+    @classmethod
+    def unregister_instance(cls, instance_id):
+        """Unregister an instance from the global registry"""
+        if instance_id in cls._instance_registry:
+            del cls._instance_registry[instance_id]
+            cls._save_instance_registry()
+    
+    @classmethod
+    def _save_instance_registry(cls):
+        """Save the instance registry to file"""
+        try:
+            with open(cls._registry_file, 'w', encoding='utf-8') as f:
+                json.dump(cls._instance_registry, f, indent=2)
+        except Exception as e:
+            print(f"Could not save instance registry: {e}")
+    
+    @classmethod
+    def _load_instance_registry(cls):
+        """Load the instance registry from file"""
+        try:
+            if os.path.exists(cls._registry_file):
+                with open(cls._registry_file, 'r', encoding='utf-8') as f:
+                    cls._instance_registry = json.load(f)
+        except Exception as e:
+            print(f"Could not load instance registry: {e}")
+            cls._instance_registry = {}
+    
+    @classmethod
+    def get_instance_registry(cls):
+        """Get the current instance registry"""
+        if not cls._instance_registry:
+            cls._load_instance_registry()
+        return cls._instance_registry
+    
     def __init__(self, instance_id=None):
         print("Initializing Desktop Widget...")
         
+        # Load the instance registry first
+        self._load_instance_registry()
+        
         # Generate instance ID if not provided
         if instance_id is None:
-            instance_id = str(uuid.uuid4())
+            # Check if there are existing instances to restore
+            existing_instances = self.get_instance_registry()
+            if existing_instances:
+                # Use the first available instance ID
+                instance_id = list(existing_instances.keys())[0]
+                print(f"Restoring existing instance: {instance_id}")
+            else:
+                # Create new instance ID
+                instance_id = str(uuid.uuid4())
+                print(f"Creating new instance: {instance_id}")
+        else:
+            print(f"Using provided instance ID: {instance_id}")
+        
         self.instance_id = instance_id
         
         # Store default size
@@ -120,13 +179,37 @@ class DesktopWidget:
         # Load saved notes
         self.load_notes()
         
+        # Check if this is a restored instance (auto-start)
+        self.is_restored_instance = self.check_if_restored_instance()
+        
+        # If restored, start in minimized widget mode
+        if self.is_restored_instance:
+            self.minimize_widget()
+        
         # Ensure proper window sizing
         self.root.update_idletasks()
         
         # Save instance metadata
         self.save_instance_metadata()
         
+        # Register the instance in the global registry
+        self.register_instance(self.instance_id, {
+            'name': self.instance_name,
+            'created_date': self.instance_created,
+            'last_modified': self.instance_last_modified,
+            'theme': self.current_theme,
+            'auto_start': self.check_auto_start_status(),
+            'files': {
+                'settings': self.settings_file,
+                'notes': self.notes_file,
+                'position': self.position_file,
+                'mini_position': self.mini_position_file
+            }
+        })
+        
         print(f"Widget initialization complete for instance: {self.instance_id}")
+        if self.is_restored_instance:
+            print("Instance restored in minimized widget mode")
     
     def create_widget_ui(self):
         """Create the modern UI components"""
@@ -703,6 +786,8 @@ class DesktopWidget:
             self.save_notes()
             self.save_position()
             self.save_settings()
+            # Unregister the instance from the global registry
+            self.unregister_instance(self.instance_id)
             self.root.quit()
     
     def start_move(self, event):
@@ -854,6 +939,24 @@ class DesktopWidget:
                   bg=self.colors['bg_medium'],
                   fg=self.colors['text_primary']).pack(pady=5)
         
+        # Auto-start checkbox for this instance
+        auto_start_var = tk.BooleanVar(value=self.check_auto_start_status())
+        
+        def toggle_instance_auto_start():
+            self.toggle_instance_auto_start()
+            auto_start_var.set(self.check_auto_start_status())
+        
+        auto_start_checkbox = tk.Checkbutton(instance_frame,
+                                            text="Enable Auto-Start for this instance",
+                                            variable=auto_start_var,
+                                            command=toggle_instance_auto_start,
+                                            bg=self.colors['bg_dark'],
+                                            fg=self.colors['text_primary'],
+                                            selectcolor=self.colors['bg_light'],
+                                            activebackground=self.colors['bg_dark'],
+                                            activeforeground=self.colors['text_primary'])
+        auto_start_checkbox.pack(pady=5)
+        
         # Instance info
         info_frame = tk.Frame(instance_frame, bg=self.colors['bg_dark'])
         info_frame.pack(fill='x', padx=10, pady=5)
@@ -964,7 +1067,7 @@ class DesktopWidget:
                                 r"Software\Microsoft\Windows\CurrentVersion\Run",
                                 0, winreg.KEY_READ)
             try:
-                winreg.QueryValueEx(key, "SmartNotes")
+                winreg.QueryValueEx(key, "SmartNotes_StartupManager")
                 return True
             except:
                 return False
@@ -976,25 +1079,26 @@ class DesktopWidget:
     def enable_auto_start(self):
         """Enable auto-start"""
         try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                r"Software\Microsoft\Windows\CurrentVersion\Run",
-                                0, winreg.KEY_SET_VALUE)
-            script_path = os.path.abspath(sys.argv[0])
-            winreg.SetValueEx(key, "SmartNotes", 0, winreg.REG_SZ, f'"{sys.executable}" "{script_path}"')
-            winreg.CloseKey(key)
-            messagebox.showinfo("Success", "Auto-start enabled!")
+            # Import instance controller to use the global auto-start method
+            from instance_controller import InstanceController
+            controller = InstanceController()
+            if controller.enable_global_auto_start():
+                messagebox.showinfo("Success", "Global auto-start enabled! All instances will be restored on startup.")
+            else:
+                messagebox.showerror("Error", "Could not enable auto-start!")
         except Exception as e:
             messagebox.showerror("Error", f"Could not enable auto-start: {e}")
     
     def disable_auto_start(self):
         """Disable auto-start"""
         try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                r"Software\Microsoft\Windows\CurrentVersion\Run",
-                                0, winreg.KEY_SET_VALUE)
-            winreg.DeleteValue(key, "SmartNotes")
-            winreg.CloseKey(key)
-            messagebox.showinfo("Success", "Auto-start disabled!")
+            # Import instance controller to use the global auto-start method
+            from instance_controller import InstanceController
+            controller = InstanceController()
+            if controller.disable_global_auto_start():
+                messagebox.showinfo("Success", "Auto-start disabled!")
+            else:
+                messagebox.showerror("Error", "Could not disable auto-start!")
         except Exception as e:
             messagebox.showerror("Error", f"Could not disable auto-start: {e}")
     
@@ -1094,15 +1198,87 @@ class DesktopWidget:
             return True
         return False
 
-    def show_instance_controller(self):
-        """Show the instance controller"""
+    def check_if_restored_instance(self):
+        """Check if this instance is being restored from auto-start"""
         try:
-            # Import and launch instance controller
-            from instance_controller import InstanceController
-            controller = InstanceController()
-            controller.show_controller()
+            # Check if this instance was launched with --instance-id (restored)
+            if len(sys.argv) > 2 and sys.argv[1] == '--instance-id':
+                return True
+            return False
+        except:
+            return False
+    
+    def check_auto_start_status(self):
+        """Check if auto-start is enabled for this instance"""
+        try:
+            # Check the instance registry for auto-start flag
+            registry_file = os.path.join(os.path.expanduser('~'), '.smart_notes_instance_registry.json')
+            if os.path.exists(registry_file):
+                with open(registry_file, 'r') as f:
+                    registry = json.load(f)
+                    if self.instance_id in registry:
+                        return registry[self.instance_id].get('auto_start', False)
         except Exception as e:
-            messagebox.showerror("Error", f"Could not open instance controller: {e}")
+            print(f"Error checking auto-start status: {e}")
+        return False
+    
+    def toggle_instance_auto_start(self):
+        """Toggle auto-start for this instance"""
+        try:
+            registry_file = os.path.join(os.path.expanduser('~'), '.smart_notes_instance_registry.json')
+            
+            if os.path.exists(registry_file):
+                with open(registry_file, 'r') as f:
+                    registry = json.load(f)
+            else:
+                registry = {}
+            
+            # Toggle auto-start status
+            if self.instance_id in registry:
+                current_status = registry[self.instance_id].get('auto_start', False)
+                registry[self.instance_id]['auto_start'] = not current_status
+                
+                # Save updated registry
+                with open(registry_file, 'w') as f:
+                    json.dump(registry, f, indent=2)
+                
+                # Update instance metadata
+                self.save_instance_metadata()
+                
+                status_text = "enabled" if not current_status else "disabled"
+                print(f"Auto-start {status_text} for this instance")
+                return True
+        except Exception as e:
+            print(f"Error toggling auto-start: {e}")
+        return False
+    
+    def show_instance_controller(self):
+        """Show the standalone instance manager"""
+        try:
+            # Import and launch standalone instance manager
+            from standalone_instance_manager import StandaloneInstanceManager
+            
+            # Check if manager is already running
+            try:
+                # Try to find existing manager window
+                for widget in tk.Tk.winfo_all():
+                    if hasattr(widget, 'title') and "Smart Notes Instance Manager" in widget.title():
+                        widget.deiconify()
+                        widget.lift()
+                        widget.focus_force()
+                        return
+            except:
+                pass
+            
+            # Create new manager if none exists
+            manager = StandaloneInstanceManager()
+            # Run in a separate thread to avoid blocking
+            import threading
+            manager_thread = threading.Thread(target=manager.run, daemon=True)
+            manager_thread.start()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open instance manager: {e}")
 
 if __name__ == "__main__":
     print("Starting Desktop Widget...")
