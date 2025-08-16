@@ -4,10 +4,17 @@ import os
 import json
 import sys
 import winreg
+import uuid
+from datetime import datetime
 
 class DesktopWidget:
-    def __init__(self):
+    def __init__(self, instance_id=None):
         print("Initializing Desktop Widget...")
+        
+        # Generate instance ID if not provided
+        if instance_id is None:
+            instance_id = str(uuid.uuid4())
+        self.instance_id = instance_id
         
         # Store default size
         self.default_width = 300
@@ -64,15 +71,20 @@ class DesktopWidget:
         self.current_theme = 'dark'
         self.colors = self.themes[self.current_theme]
         
-        # Define file paths
-        self.settings_file = os.path.join(os.path.expanduser('~'), '.smart_notes_settings.json')
-        self.notes_file = os.path.join(os.path.expanduser('~'), '.smart_notes.txt')
-        self.position_file = os.path.join(os.path.expanduser('~'), '.smart_notes_position.json')
-        self.mini_position_file = os.path.join(os.path.expanduser('~'), '.smart_notes_mini_position.json')
+        # Define instance-specific file paths
+        self.settings_file = os.path.join(os.path.expanduser('~'), f'.smart_notes_{self.instance_id}_settings.json')
+        self.notes_file = os.path.join(os.path.expanduser('~'), f'.smart_notes_{self.instance_id}_notes.txt')
+        self.position_file = os.path.join(os.path.expanduser('~'), f'.smart_notes_{self.instance_id}_position.json')
+        self.mini_position_file = os.path.join(os.path.expanduser('~'), f'.smart_notes_{self.instance_id}_mini_position.json')
+        
+        # Instance metadata
+        self.instance_name = f"Instance {self.instance_id[:8]}"
+        self.instance_created = datetime.now().isoformat()
+        self.instance_last_modified = datetime.now().isoformat()
         
         # Create the main window
         self.root = tk.Tk()
-        self.root.title("Smart Notes")
+        self.root.title(f"Smart Notes - {self.instance_name}")
         
         # Set window attributes
         self.root.overrideredirect(True)  # Remove window decorations
@@ -99,6 +111,9 @@ class DesktopWidget:
         self.load_settings()
         self.load_position()
         
+        # Load instance metadata
+        self.load_instance_metadata()
+        
         # Make widget draggable
         self.make_draggable()
         
@@ -108,7 +123,10 @@ class DesktopWidget:
         # Ensure proper window sizing
         self.root.update_idletasks()
         
-        print("Widget initialization complete")
+        # Save instance metadata
+        self.save_instance_metadata()
+        
+        print(f"Widget initialization complete for instance: {self.instance_id}")
     
     def create_widget_ui(self):
         """Create the modern UI components"""
@@ -170,6 +188,15 @@ class DesktopWidget:
                                     font=('Segoe UI', 11),
                                     **button_style)
         self.settings_btn.pack(side='left', padx=2)
+        
+        # Instance Controller button
+        self.controller_btn = tk.Button(controls_frame, 
+                                      text="📋", 
+                                      command=self.show_instance_controller,
+                                      fg=self.colors['text_primary'],
+                                      font=('Segoe UI', 11),
+                                      **button_style)
+        self.controller_btn.pack(side='left', padx=2)
         
         # Minimize button
         minimize_btn = tk.Button(controls_frame, 
@@ -780,15 +807,78 @@ class DesktopWidget:
             print(f"Could not load settings: {e}")
     
     def show_settings(self):
-        """Show settings dialog"""
+        """Show settings window"""
         settings_window = tk.Toplevel(self.root)
         settings_window.title("Settings")
-        settings_window.geometry("400x500")
+        settings_window.geometry("400x600")
         settings_window.configure(bg=self.colors['bg_dark'])
+        settings_window.attributes('-topmost', True)
+        
+        # Center the settings window
+        settings_window.transient(self.root)
+        settings_window.grab_set()
+        
+        # Instance Management section
+        instance_frame = tk.LabelFrame(settings_window,
+                                     text="Instance Management",
+                                     bg=self.colors['bg_dark'],
+                                     fg=self.colors['text_primary'])
+        instance_frame.pack(fill='x', padx=10, pady=10)
+        
+        # Instance name entry
+        name_frame = tk.Frame(instance_frame, bg=self.colors['bg_dark'])
+        name_frame.pack(fill='x', padx=10, pady=5)
+        
+        tk.Label(name_frame, 
+                text="Instance Name:",
+                bg=self.colors['bg_dark'],
+                fg=self.colors['text_primary']).pack(side='left')
+        
+        name_entry = tk.Entry(name_frame, 
+                             bg=self.colors['bg_light'],
+                             fg=self.colors['text_primary'],
+                             insertbackground=self.colors['accent'])
+        name_entry.insert(0, self.instance_name)
+        name_entry.pack(side='right', fill='x', expand=True, padx=(10, 0))
+        
+        # Rename button
+        def rename_instance():
+            if self.rename_instance(name_entry.get()):
+                messagebox.showinfo("Success", "Instance renamed successfully!")
+            else:
+                messagebox.showerror("Error", "Please enter a valid name!")
+        
+        tk.Button(instance_frame,
+                  text="Rename Instance",
+                  command=rename_instance,
+                  bg=self.colors['bg_medium'],
+                  fg=self.colors['text_primary']).pack(pady=5)
+        
+        # Instance info
+        info_frame = tk.Frame(instance_frame, bg=self.colors['bg_dark'])
+        info_frame.pack(fill='x', padx=10, pady=5)
+        
+        tk.Label(info_frame,
+                text=f"Instance ID: {self.instance_id[:8]}...",
+                bg=self.colors['bg_dark'],
+                fg=self.colors['text_secondary'],
+                font=('Segoe UI', 9)).pack(anchor='w')
+        
+        tk.Label(info_frame,
+                text=f"Created: {self.instance_created[:10]}",
+                bg=self.colors['bg_dark'],
+                fg=self.colors['text_secondary'],
+                font=('Segoe UI', 9)).pack(anchor='w')
+        
+        tk.Label(info_frame,
+                text=f"Last Modified: {self.instance_last_modified[:10]}",
+                bg=self.colors['bg_dark'],
+                fg=self.colors['text_secondary'],
+                font=('Segoe UI', 9)).pack(anchor='w')
         
         # Theme section
         theme_frame = tk.LabelFrame(settings_window,
-                                  text="Theme Options",
+                                  text="Theme Selection",
                                   bg=self.colors['bg_dark'],
                                   fg=self.colors['text_primary'])
         theme_frame.pack(fill='x', padx=10, pady=10)
@@ -922,6 +1012,9 @@ class DesktopWidget:
         try:
             with open(self.notes_file, 'w', encoding='utf-8') as f:
                 f.write(self.text.get('1.0', 'end-1c'))
+            # Update last modified timestamp
+            self.instance_last_modified = datetime.now().isoformat()
+            self.save_instance_metadata()
         except Exception as e:
             print(f"Could not save notes: {e}")
     
@@ -937,6 +1030,43 @@ class DesktopWidget:
         except Exception as e:
             print(f"Could not load notes: {e}")
     
+    def save_instance_metadata(self):
+        """Save instance metadata"""
+        try:
+            metadata_file = os.path.join(os.path.expanduser('~'), f'.smart_notes_{self.instance_id}_metadata.json')
+            metadata = {
+                'instance_id': self.instance_id,
+                'name': self.instance_name,
+                'created_date': self.instance_created,
+                'last_modified': datetime.now().isoformat(),
+                'theme': self.current_theme,
+                'files': {
+                    'settings': self.settings_file,
+                    'notes': self.notes_file,
+                    'position': self.position_file,
+                    'mini_position': self.mini_position_file
+                }
+            }
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=2)
+        except Exception as e:
+            print(f"Could not save instance metadata: {e}")
+    
+    def load_instance_metadata(self):
+        """Load instance metadata"""
+        try:
+            metadata_file = os.path.join(os.path.expanduser('~'), f'.smart_notes_{self.instance_id}_metadata.json')
+            if os.path.exists(metadata_file):
+                with open(metadata_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                    self.instance_name = metadata.get('name', self.instance_name)
+                    self.instance_created = metadata.get('created_date', self.instance_created)
+                    self.instance_last_modified = metadata.get('last_modified', self.instance_last_modified)
+                    # Update window title
+                    self.root.title(f"Smart Notes - {self.instance_name}")
+        except Exception as e:
+            print(f"Could not load instance metadata: {e}")
+
     def run(self):
         """Start the application"""
         print("Widget initialized, starting main loop...")
@@ -955,7 +1085,33 @@ class DesktopWidget:
         # Start the main event loop
         self.root.mainloop()
 
+    def rename_instance(self, new_name):
+        """Rename the current instance"""
+        if new_name and new_name.strip():
+            self.instance_name = new_name.strip()
+            self.root.title(f"Smart Notes - {self.instance_name}")
+            self.save_instance_metadata()
+            return True
+        return False
+
+    def show_instance_controller(self):
+        """Show the instance controller"""
+        try:
+            # Import and launch instance controller
+            from instance_controller import InstanceController
+            controller = InstanceController()
+            controller.show_controller()
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open instance controller: {e}")
+
 if __name__ == "__main__":
     print("Starting Desktop Widget...")
-    widget = DesktopWidget()
+    
+    # Check for command line arguments
+    instance_id = None
+    if len(sys.argv) > 2 and sys.argv[1] == '--instance-id':
+        instance_id = sys.argv[2]
+        print(f"Launching with instance ID: {instance_id}")
+    
+    widget = DesktopWidget(instance_id)
     widget.run()
