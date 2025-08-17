@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import winreg
+from auto_start_registry import AutoStartRegistry
 
 class StandaloneInstanceManager:
     def __init__(self):
@@ -22,6 +23,7 @@ class StandaloneInstanceManager:
         self.item_to_instance_map = {}  # Map treeview items to instance IDs
         self.max_instances = 10  # Maximum number of instances allowed
         self.running_instances = set()  # Track running instances
+        self.auto_start_registry = AutoStartRegistry()  # Auto-start registry manager
         self.colors = {
             'bg_dark': '#1e1e1e',
             'bg_medium': '#2d2d2d',
@@ -190,6 +192,18 @@ class StandaloneInstanceManager:
                                          font=('Segoe UI', 10))
         enable_auto_start_btn.pack(side='left', padx=(0, 10))
         
+        # Disable Auto-Start button
+        disable_auto_start_btn = tk.Button(action_frame,
+                                          text="Disable Auto-Start",
+                                          command=self.disable_auto_start_selected_instance,
+                                          bg=self.colors['danger'],
+                                          fg=self.colors['text_primary'],
+                                          bd=0,
+                                          padx=20,
+                                          pady=10,
+                                          font=('Segoe UI', 10))
+        disable_auto_start_btn.pack(side='left', padx=(0, 10))
+        
         # Delete instance button
         delete_btn = tk.Button(action_frame,
                               text="Delete Instance",
@@ -214,7 +228,7 @@ class StandaloneInstanceManager:
         self.refresh_instance_list()
         
     def load_instances(self):
-        """Load all existing instances from metadata files"""
+        """Load all existing instances from metadata files and auto-start registry"""
         self.instances = {}
         home_dir = os.path.expanduser('~')
         
@@ -232,9 +246,22 @@ class StandaloneInstanceManager:
                         print(f"Error loading instance metadata {filename}: {e}")
         except Exception as e:
             print(f"Error scanning for instances: {e}")
+        
+        # Also load instances from auto-start registry (in case metadata files are missing)
+        try:
+            auto_start_instances = self.auto_start_registry.get_auto_start_instances()
+            for instance_id, metadata in auto_start_instances.items():
+                if instance_id not in self.instances:
+                    # Add auto-start instance even if metadata file is missing
+                    print(f"Loading auto-start instance from registry: {metadata.get('name', instance_id)}")
+                    self.instances[instance_id] = metadata
+        except Exception as e:
+            print(f"Error loading auto-start instances: {e}")
     
     def refresh_instance_list(self):
         """Refresh the instance list display"""
+        print("🔄 Refreshing instance list...")
+        
         # Clear existing items
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -251,6 +278,8 @@ class StandaloneInstanceManager:
             auto_start_enabled = self.check_instance_auto_start(instance_id)
             auto_start_text = "Enabled" if auto_start_enabled else "Disabled"
             
+            print(f"  Instance: {metadata.get('name', 'Unknown')} - Auto-start: {auto_start_text}")
+            
             # Create item
             item = self.tree.insert('', 'end', values=(
                 "☑" if auto_start_enabled else "☐",
@@ -266,42 +295,28 @@ class StandaloneInstanceManager:
         
         # Update status
         self.update_status()
+        print(f"✅ Refresh complete. Auto-start count: {self.auto_start_registry.get_auto_start_count()}")
     
     def check_instance_auto_start(self, instance_id):
         """Check if auto-start is enabled for a specific instance"""
-        try:
-            # Check the instance registry for auto-start flag
-            registry_file = os.path.join(os.path.expanduser('~'), '.smart_notes_instance_registry.json')
-            if os.path.exists(registry_file):
-                with open(registry_file, 'r') as f:
-                    registry = json.load(f)
-                    if instance_id in registry:
-                        return registry[instance_id].get('auto_start', False)
-        except Exception as e:
-            print(f"Error checking auto-start for instance {instance_id}: {e}")
-        return False
+        return self.auto_start_registry.is_auto_start_enabled(instance_id)
     
     def toggle_instance_auto_start(self, instance_id):
         """Toggle auto-start for a specific instance"""
         try:
-            registry_file = os.path.join(os.path.expanduser('~'), '.smart_notes_instance_registry.json')
-            if os.path.exists(registry_file):
-                with open(registry_file, 'r') as f:
-                    registry = json.load(f)
+            if self.auto_start_registry.is_auto_start_enabled(instance_id):
+                # Remove from auto-start
+                success = self.auto_start_registry.remove_instance(instance_id)
+                if success:
+                    print(f"Auto-start disabled for instance {instance_id}")
+                    return True
             else:
-                registry = {}
-            
-            # Toggle auto-start status
-            if instance_id in registry:
-                current_status = registry[instance_id].get('auto_start', False)
-                registry[instance_id]['auto_start'] = not current_status
-                
-                # Save updated registry
-                with open(registry_file, 'w') as f:
-                    json.dump(registry, f, indent=2)
-                
-                print(f"Auto-start {'enabled' if not current_status else 'disabled'} for instance {instance_id}")
-                return True
+                # Add to auto-start
+                instance_metadata = self.instances.get(instance_id, {})
+                success = self.auto_start_registry.add_instance(instance_id, instance_metadata)
+                if success:
+                    print(f"Auto-start enabled for instance {instance_id}")
+                    return True
         except Exception as e:
             print(f"Error toggling auto-start for instance {instance_id}: {e}")
         return False
@@ -329,41 +344,71 @@ class StandaloneInstanceManager:
             return
         
         # Check if auto-start is already enabled
-        if self.check_instance_auto_start(instance_id):
+        if self.auto_start_registry.is_auto_start_enabled(instance_id):
             messagebox.showinfo("Auto-Start Already Enabled", 
                               f"Auto-start is already enabled for '{instance_name}'.")
             return
         
-        # Enable auto-start
+        # Enable auto-start using the new registry
         try:
-            registry_file = os.path.join(os.path.expanduser('~'), '.smart_notes_instance_registry.json')
-            if os.path.exists(registry_file):
-                with open(registry_file, 'r') as f:
-                    registry = json.load(f)
+            print(f"🔧 Enabling auto-start for instance: {instance_id}")
+            instance_metadata = self.instances.get(instance_id, {})
+            success = self.auto_start_registry.add_instance(instance_id, instance_metadata)
+            
+            if success:
+                print(f"✅ Auto-start enabled successfully for {instance_name}")
+                # Refresh the display immediately
+                self.refresh_instance_list()
+                messagebox.showinfo("Success", f"Auto-start enabled for '{instance_name}'!")
             else:
-                registry = {}
-            
-            # Enable auto-start for the instance
-            if instance_id in registry:
-                registry[instance_id]['auto_start'] = True
-            else:
-                # If instance not in registry, add it
-                registry[instance_id] = {
-                    'auto_start': True,
-                    'name': instance_name
-                }
-            
-            # Save updated registry
-            with open(registry_file, 'w') as f:
-                json.dump(registry, f, indent=2)
-            
-            # Refresh the display
-            self.refresh_instance_list()
-            
-            messagebox.showinfo("Success", f"Auto-start enabled for '{instance_name}'!")
+                print(f"❌ Failed to enable auto-start for {instance_name}")
+                messagebox.showerror("Error", "Could not enable auto-start.")
             
         except Exception as e:
+            print(f"❌ Error enabling auto-start: {e}")
             messagebox.showerror("Error", f"Could not enable auto-start: {e}")
+    
+    def disable_auto_start_selected_instance(self):
+        """Disable auto-start for the selected instance"""
+        selected_item = self.tree.selection()
+        if not selected_item:
+            messagebox.showwarning("No Instance Selected", "Please select an instance first.")
+            return
+        
+        # Get the instance ID from the selected item
+        item_values = self.tree.item(selected_item[0])['values']
+        instance_name = item_values[1]  # Instance name is in the second column
+        
+        # Find the instance ID by name
+        instance_id = None
+        for inst_id, metadata in self.instances.items():
+            if metadata.get('name') == instance_name:
+                instance_id = inst_id
+                break
+        
+        if not instance_id:
+            messagebox.showerror("Error", "Could not find the selected instance.")
+            return
+        
+        # Check if auto-start is already disabled
+        if not self.auto_start_registry.is_auto_start_enabled(instance_id):
+            messagebox.showinfo("Auto-Start Already Disabled", 
+                              f"Auto-start is already disabled for '{instance_name}'.")
+            return
+        
+        # Disable auto-start using the new registry
+        try:
+            success = self.auto_start_registry.remove_instance(instance_id)
+            
+            if success:
+                # Refresh the display immediately
+                self.refresh_instance_list()
+                messagebox.showinfo("Success", f"Auto-start disabled for '{instance_name}'!")
+            else:
+                messagebox.showerror("Error", "Could not disable auto-start.")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not disable auto-start: {e}")
     
     def create_instance(self):
         """Create a new instance"""
@@ -448,7 +493,7 @@ class StandaloneInstanceManager:
             self.running_instances.add(instance_id)
             
             # Get the current script path
-            script_path = os.path.join(os.path.dirname(__file__), 'src', 'sticky_notes_widget.py')
+            script_path = os.path.join(os.path.dirname(__file__), 'other files', 'src', 'sticky_notes_widget.py')
             
             # Launch the instance with the instance ID as argument
             process = subprocess.Popen([sys.executable, script_path, '--instance-id', instance_id])
@@ -728,9 +773,9 @@ class StandaloneInstanceManager:
                                 r"Software\Microsoft\Windows\CurrentVersion\Run",
                                 0, winreg.KEY_SET_VALUE)
             
-            # Create auto-start entry for the HIDDEN startup manager
+            # Create auto-start entry for the new startup manager
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            startup_manager_path = os.path.join(current_dir, 'startup_manager_hidden.pyw')
+            startup_manager_path = os.path.join(current_dir, 'startup_manager.py')
             auto_start_value = f'"{sys.executable}" "{startup_manager_path}"'
             winreg.SetValueEx(key, "SmartNotes_StartupManager", 0, winreg.REG_SZ, auto_start_value)
             winreg.CloseKey(key)
@@ -769,8 +814,7 @@ class StandaloneInstanceManager:
         """Update the status bar"""
         total_instances = len(self.instances)
         running_instances = len(self.running_instances)
-        auto_start_instances = sum(1 for instance_id in self.instances.keys() 
-                                 if self.check_instance_auto_start(instance_id))
+        auto_start_instances = self.auto_start_registry.get_auto_start_count()
         
         status_text = f"Total: {total_instances} | Running: {running_instances} | Auto-Start: {auto_start_instances}"
         self.status_label.config(text=status_text)

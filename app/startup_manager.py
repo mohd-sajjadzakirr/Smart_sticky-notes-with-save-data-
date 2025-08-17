@@ -1,118 +1,90 @@
 #!/usr/bin/env python3
 """
-Startup Manager for Smart Notes Widget
-Handles restoring all previously open instances when the computer restarts
+Startup Manager for Smart Notes
+Launches auto-start enabled instances when the system starts
 """
 
 import os
-import json
 import sys
 import subprocess
 import time
-from pathlib import Path
+from auto_start_registry import AutoStartRegistry
 
-def get_instance_registry():
-    """Get the instance registry from file"""
-    registry_file = os.path.join(os.path.expanduser('~'), '.smart_notes_instance_registry.json')
-    try:
-        if os.path.exists(registry_file):
-            with open(registry_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-    except Exception as e:
-        print(f"Could not load instance registry: {e}")
-    return {}
-
-def restore_instances():
-    """Restore only checked instances for auto-start"""
-    print("Restoring Smart Notes instances...")
-    
-    # Get the instance registry
-    instances = get_instance_registry()
-    
-    if not instances:
-        print("No instances to restore")
-        return
-    
-    # Filter only instances with auto-start enabled
-    auto_start_instances = {instance_id: metadata for instance_id, metadata in instances.items() 
-                           if metadata.get('auto_start', False)}
-    
-    if not auto_start_instances:
-        print("No instances with auto-start enabled")
-        return
-    
-    print(f"Found {len(auto_start_instances)} instances with auto-start enabled")
-    
-    # Get the path to the sticky notes widget
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    widget_path = os.path.join(current_dir, 'src', 'sticky_notes_widget.py')
-    
-    if not os.path.exists(widget_path):
-        print(f"Widget not found at: {widget_path}")
-        return
-    
-    # Launch each auto-start enabled instance
-    for instance_id, metadata in auto_start_instances.items():
+class StartupManager:
+    def __init__(self):
+        self.auto_start_registry = AutoStartRegistry()
+        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+    def launch_auto_start_instances(self):
+        """Launch all auto-start enabled instances"""
         try:
-            print(f"Restoring auto-start instance: {metadata.get('name', instance_id[:8])}")
+            auto_start_instances = self.auto_start_registry.get_auto_start_instances()
             
-            # Launch the instance with its specific ID
-            cmd = [sys.executable, widget_path, '--instance-id', instance_id]
-            subprocess.Popen(cmd, cwd=current_dir)
+            if not auto_start_instances:
+                print("No auto-start instances found.")
+                return
             
-            # Small delay between launches to avoid overwhelming the system
-            time.sleep(1)
+            print(f"Launching {len(auto_start_instances)} auto-start instances...")
+            
+            for instance_id, metadata in auto_start_instances.items():
+                try:
+                    self.launch_instance(instance_id, metadata)
+                    # Small delay to prevent overwhelming the system
+                    time.sleep(0.5)
+                except Exception as e:
+                    print(f"Error launching instance {instance_id}: {e}")
+            
+            print("Auto-start instances launched successfully!")
             
         except Exception as e:
-            print(f"Failed to restore instance {instance_id}: {e}")
+            print(f"Error in startup manager: {e}")
     
-    print("Instance restoration complete")
-
-def enable_auto_start():
-    """Enable auto-start for the application"""
-    try:
-        import winreg
+    def launch_instance(self, instance_id, metadata):
+        """Launch a single instance"""
+        try:
+            # Path to the sticky notes widget
+            widget_path = os.path.join(self.current_dir, 'other files', 'src', 'sticky_notes_widget.py')
+            
+            if not os.path.exists(widget_path):
+                print(f"Widget not found at: {widget_path}")
+                return False
+            
+            # Launch the instance with the instance ID
+            process = subprocess.Popen([
+                sys.executable, 
+                widget_path, 
+                '--instance-id', 
+                instance_id
+            ], cwd=self.current_dir)
+            
+            print(f"Launched instance: {metadata.get('name', instance_id)} (PID: {process.pid})")
+            return True
+            
+        except Exception as e:
+            print(f"Error launching instance {instance_id}: {e}")
+            return False
+    
+    def run(self):
+        """Main startup process"""
+        print("🚀 Smart Notes Startup Manager")
+        print("=" * 40)
         
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                            r"Software\Microsoft\Windows\CurrentVersion\Run",
-                            0, winreg.KEY_SET_VALUE)
+        # Wait a bit for system to fully boot
+        print("Waiting for system to stabilize...")
+        time.sleep(2)
         
-        # Create auto-start entry for the startup manager
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        startup_manager_path = os.path.join(current_dir, 'startup_manager.py')
-        auto_start_value = f'"{sys.executable}" "{startup_manager_path}"'
-        winreg.SetValueEx(key, "SmartNotes_StartupManager", 0, winreg.REG_SZ, auto_start_value)
-        winreg.CloseKey(key)
+        # Launch auto-start instances
+        self.launch_auto_start_instances()
         
-        print("Global auto-start enabled for Smart Notes")
-        return True
+        print("Startup process completed.")
         
-    except Exception as e:
-        print(f"Could not enable global auto-start: {e}")
-        return False
+        # Keep the process running for a short time to ensure instances start
+        time.sleep(5)
 
 def main():
     """Main entry point"""
-    # Check command line arguments
-    if len(sys.argv) > 1 and sys.argv[1] == '--enable-auto-start':
-        if enable_auto_start():
-            print("Auto-start has been successfully enabled!")
-            print("Smart Notes will now automatically restore all instances when you restart your computer.")
-        else:
-            print("Failed to enable auto-start.")
-        return
-    
-    print("Smart Notes Startup Manager")
-    print("=" * 40)
-    
-    # Wait a bit for the system to fully start
-    print("Waiting for system to stabilize...")
-    time.sleep(5)
-    
-    # Restore instances
-    restore_instances()
-    
-    print("Startup Manager finished")
+    startup_manager = StartupManager()
+    startup_manager.run()
 
 if __name__ == "__main__":
     main() 

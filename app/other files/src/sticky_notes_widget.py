@@ -1255,27 +1255,26 @@ class DesktopWidget:
     def show_instance_controller(self):
         """Show the standalone instance manager"""
         try:
-            # Import and launch standalone instance manager
-            from standalone_instance_manager import StandaloneInstanceManager
+            import subprocess
+            import os
             
-            # Check if manager is already running
-            try:
-                # Try to find existing manager window
-                for widget in tk.Tk.winfo_all():
-                    if hasattr(widget, 'title') and "Smart Notes Instance Manager" in widget.title():
-                        widget.deiconify()
-                        widget.lift()
-                        widget.focus_force()
-                        return
-            except:
-                pass
+            # Get the path to the standalone instance manager
+            current_dir = os.path.dirname(os.path.abspath(__file__))  # src directory
+            parent_dir = os.path.dirname(current_dir)  # other files directory
+            app_dir = os.path.dirname(parent_dir)  # app directory
+            manager_path = os.path.join(app_dir, 'standalone_instance_manager.py')
             
-            # Create new manager if none exists
-            manager = StandaloneInstanceManager()
-            # Run in a separate thread to avoid blocking
-            import threading
-            manager_thread = threading.Thread(target=manager.run, daemon=True)
-            manager_thread.start()
+            # Check if the manager file exists
+            if not os.path.exists(manager_path):
+                messagebox.showerror("Error", f"Instance manager not found at: {manager_path}")
+                return
+            
+            # Launch the standalone instance manager as a separate process (hidden console)
+            subprocess.Popen([sys.executable, manager_path], 
+                           cwd=app_dir,
+                           creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
             
         except Exception as e:
             messagebox.showerror("Error", f"Could not open instance manager: {e}")
