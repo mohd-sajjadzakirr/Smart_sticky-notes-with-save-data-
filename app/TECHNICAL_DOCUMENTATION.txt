@@ -1,0 +1,169 @@
+# Smart Notes - Technical Documentation
+
+## 1. Application Architecture
+
+### 1.1 Core Components
+- Smart_Notes_Manager.pyw: Main entry point and launcher
+- standalone_instance_manager.py: Core application manager
+- sticky_notes_widget.py: Individual note widget implementation
+- auto_start_registry.py: Auto-start functionality manager
+- startup_manager.py: System startup handler
+- launch_manager.py: Additional launcher utilities
+
+### 1.2 Data Storage Structure
+Location: C:\Users\[Username]\
+- .smart_notes_[instance-id]_metadata.json: Instance metadata
+- .smart_notes_[instance-id]_notes.txt: Note content
+- .smart_notes_[instance-id]_settings.json: Note settings
+- .smart_notes_[instance-id]_position.json: Window position
+- .smart_notes_auto_start.json: Auto-start configuration
+- .smart_notes_instance_registry.json: Global instance registry
+
+## 2. Core Functionality
+
+### 2.1 Instance Management
+- Each note is a unique instance with UUID
+- Instance registry tracks all active notes
+- Registry stored in .smart_notes_instance_registry.json
+- Instances can be created, renamed, and deleted
+- Each instance maintains its own state files
+
+### 2.2 Auto-Start System
+Implements two levels of auto-start:
+1. Global Auto-Start:
+   - Uses Windows Registry (HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run)
+   - Managed by InstanceController class
+   - Controls system-wide startup behavior
+
+2. Instance-Specific Auto-Start:
+   - Stored in instance registry JSON
+   - Each instance can be individually configured
+   - Auto-start status tracked in instance metadata
+
+### 2.3 Data Persistence
+1. Note Content:
+   - Stored in .smart_notes_[instance-id]_notes.txt
+   - Auto-saves every 30 seconds
+   - UTF-8 encoding for universal character support
+
+2. Settings:
+   - Window state (locked/unlocked)
+   - Theme preferences
+   - Transparency settings
+   - Window dimensions
+   - Position coordinates
+
+### 2.4 UI Components
+1. Main Window:
+   - Draggable interface
+   - Resizable corners
+   - Lock/unlock mechanism
+   - Minimize to tray
+
+2. Instance Manager:
+   - Centralized control panel
+   - Instance list management
+   - Auto-start controls
+   - Instance creation/deletion
+
+## 3. Implementation Details
+
+### 3.1 Class Structure
+DesktopWidget Class:
+- Manages individual note instances
+- Handles UI interactions
+- Controls data persistence
+- Manages instance registry
+
+InstanceController Class:
+- Manages global auto-start
+- Handles instance creation/deletion
+- Controls system integration
+
+### 3.2 File Operations
+1. Save Operations:
+   - Notes: Periodic auto-save (30s)
+   - Settings: On change
+   - Position: On window move
+   - Registry: On instance changes
+
+2. Load Operations:
+   - Instance restoration on startup
+   - Settings application
+   - Position restoration
+   - Theme application
+
+### 3.3 Error Handling
+- File operation exceptions
+- Registry access errors
+- Instance management failures
+- Auto-start configuration issues
+
+## 4. System Integration
+
+### 4.1 Windows Registry
+- Auto-start entry: "SmartNotes_StartupManager"
+- Registry key: Software\Microsoft\Windows\CurrentVersion\Run
+- Managed through winreg module
+
+### 4.2 File System
+- User directory based storage
+- Hidden configuration files
+- JSON format for settings
+- Plain text for notes
+
+## 5. Development Guidelines
+
+### 5.1 Adding New Features
+1. Instance Management:
+   - Update registry structure
+   - Maintain backward compatibility
+   - Follow UUID naming convention
+
+2. UI Modifications:
+   - Use existing color scheme
+   - Follow widget structure
+   - Maintain drag/resize functionality
+
+### 5.2 Data Structure Extensions
+1. Instance Registry Format:
+```json
+{
+    "instance_id": {
+        "auto_start": boolean,
+        "name": string,
+        "created_at": timestamp,
+        "last_modified": timestamp
+    }
+}
+```
+
+2. Settings Format:
+```json
+{
+    "is_locked": boolean,
+    "auto_start": boolean,
+    "theme": string,
+    "transparency": float,
+    "width": integer,
+    "height": integer
+}
+```
+
+### 5.3 Best Practices
+1. Error Handling:
+   - Always use try-except blocks
+   - Log errors appropriately
+   - Provide user feedback
+
+2. File Operations:
+   - Use proper encoding (UTF-8)
+   - Implement auto-save
+   - Verify file existence
+
+3. Registry Operations:
+   - Check permissions
+   - Handle access errors
+   - Maintain cleanup routines
+
+This documentation provides a comprehensive overview of the Smart Notes application architecture and implementation details, enabling developers to understand and extend the functionality while maintaining consistency with the existing codebase.
