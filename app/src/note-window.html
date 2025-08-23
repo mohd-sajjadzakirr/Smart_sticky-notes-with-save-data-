@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Note</title>
+    <link rel="stylesheet" href="styles/note-window.css">
+    <link rel="stylesheet" href="styles/themes.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+    <div id="app" class="note-window">
+        <!-- Title Bar -->
+        <div class="title-bar" id="titleBar">
+            <div class="title-bar-left">
+                <div class="note-title" id="noteTitle" contenteditable="true" placeholder="Untitled Note">Untitled Note</div>
+                <div class="note-info">
+                    <span id="wordCount">0 words</span>
+                    <span id="lastSaved">Never saved</span>
+                </div>
+            </div>
+            <div class="title-bar-controls">
+                <button class="control-btn" id="searchBtn" title="Search">🔍</button>
+                <button class="control-btn" id="tagsBtn" title="Tags">#</button>
+                <button class="control-btn" id="markdownBtn" title="Toggle Markdown">📝</button>
+                <button class="control-btn" id="settingsBtn" title="Settings">⚙️</button>
+                <button class="control-btn" id="pinBtn" title="Always on Top">📌</button>
+                <button class="control-btn" id="minimizeBtn" title="Minimize">−</button>
+                <button class="control-btn close-btn" id="closeBtn" title="Close">×</button>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-bar hidden" id="searchBar">
+            <input type="text" id="searchInput" placeholder="Search in note...">
+            <div class="search-controls">
+                <button id="searchPrev">↑</button>
+                <button id="searchNext">↓</button>
+                <button id="searchClose">×</button>
+            </div>
+        </div>
+
+        <!-- Tags Bar -->
+        <div class="tags-bar hidden" id="tagsBar">
+            <div class="tags-container" id="tagsContainer"></div>
+            <input type="text" id="tagInput" placeholder="Add tag...">
+        </div>
+
+        <!-- Main Content -->
+        <div class="content-container">
+            <!-- Editor -->
+            <div class="editor-container" id="editorContainer">
+                <textarea id="noteContent" placeholder="Start typing your note..."></textarea>
+            </div>
+
+            <!-- Markdown Preview -->
+            <div class="preview-container hidden" id="previewContainer">
+                <div id="markdownPreview"></div>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span id="cursorPosition">Line 1, Column 1</span>
+                <span id="selectionInfo"></span>
+            </div>
+            <div class="status-right">
+                <span id="noteStats">0 chars, 0 words</span>
+                <span id="saveStatus">Saved</span>
+            </div>
+        </div>
+
+        <!-- Context Menu -->
+        <div class="context-menu hidden" id="contextMenu">
+            <div class="menu-item" data-action="cut">Cut</div>
+            <div class="menu-item" data-action="copy">Copy</div>
+            <div class="menu-item" data-action="paste">Paste</div>
+            <div class="menu-separator"></div>
+            <div class="menu-item" data-action="selectAll">Select All</div>
+            <div class="menu-separator"></div>
+            <div class="menu-item" data-action="find">Find</div>
+            <div class="menu-item" data-action="replace">Replace</div>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel hidden" id="settingsPanel">
+            <div class="settings-header">
+                <h3>Note Settings</h3>
+                <button id="settingsCloseBtn">×</button>
+            </div>
+            <div class="settings-content">
+                <div class="setting-group">
+                    <label>Theme</label>
+                    <select id="themeSelect">
+                        <option value="dark">Dark</option>
+                        <option value="light">Light</option>
+                        <option value="blue">Blue</option>
+                        <option value="green">Green</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label>Font Size</label>
+                    <input type="range" id="fontSizeSlider" min="12" max="24" value="14">
+                    <span id="fontSizeValue">14px</span>
+                </div>
+                <div class="setting-group">
+                    <label>Font Family</label>
+                    <select id="fontFamilySelect">
+                        <option value="system">System Default</option>
+                        <option value="monospace">Monospace</option>
+                        <option value="serif">Serif</option>
+                        <option value="sans-serif">Sans Serif</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="wordWrapCheck"> Word Wrap
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        <input type="checkbox" id="lineNumbersCheck"> Line Numbers
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>Opacity</label>
+                    <input type="range" id="opacitySlider" min="0.5" max="1" step="0.1" value="1">
+                    <span id="opacityValue">100%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resize Handle -->
+        <div class="resize-handle" id="resizeHandle"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/7.0.0/fuse.min.js"></script>
+    <script src="scripts/note-window.js"></script>
+</body>
+</html>
